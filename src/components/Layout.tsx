@@ -14,9 +14,11 @@ import {
   SidebarFooter,
 } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
+import { useAuth } from '@/hooks/use-auth'
 
 export default function Layout() {
   const location = useLocation()
+  const { user, signOut } = useAuth()
 
   return (
     <SidebarProvider>
@@ -65,8 +67,10 @@ export default function Layout() {
         </SidebarContent>
         <SidebarFooter className="border-t p-4">
           <div className="flex flex-col">
-            <span className="text-sm font-semibold">Carlos Souza</span>
-            <span className="text-xs text-muted-foreground">Admin</span>
+            <span className="text-sm font-semibold">{user?.name || user?.email || 'Usuário'}</span>
+            <span className="text-xs text-muted-foreground capitalize">
+              {user?.perfil || 'Membro'}
+            </span>
           </div>
         </SidebarFooter>
       </Sidebar>
@@ -79,6 +83,7 @@ export default function Layout() {
           <Button
             variant="ghost"
             size="sm"
+            onClick={signOut}
             className="gap-2 text-muted-foreground hover:text-foreground"
           >
             <span className="hidden sm:block">Sair</span>
