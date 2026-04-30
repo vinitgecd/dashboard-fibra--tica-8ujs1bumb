@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { InteractiveMap } from '@/components/InteractiveMap'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,7 +31,7 @@ import pb from '@/lib/pocketbase/client'
 import { Trash2, Plus } from 'lucide-react'
 
 const pontoSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   numero_ponto: z.string(),
   lat: z.number(),
   lng: z.number(),
@@ -41,16 +41,19 @@ const pontoSchema = z.object({
 
 const formSchema = z.object({
   data: z.string().min(1, 'Obrigatório'),
-  localizacao: z.string().min(1, 'Obrigatório'),
+  localizacao: z.string().optional(),
   observacoes: z.string().optional(),
   pontos: z.array(pontoSchema).min(1, 'Adicione pelo menos 1 ponto no mapa'),
 })
 
 export default function NovoReporte() {
   const navigate = useNavigate()
+  const { id } = useParams()
+  const isEditing = !!id
   const { toast } = useToast()
   const { user } = useAuth()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loading, setLoading] = useState(isEditing)
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -64,9 +67,46 @@ export default function NovoReporte() {
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'pontos' })
 
+  useEffect(() => {
+    async function fetchReport() {
+      if (!isEditing) return
+      try {
+        const report = await pb.collection('reports').getOne(id)
+        const pontos = await pb.collection('pontos_instalacao').getFullList({
+          filter: `report_id="${id}"`,
+        })
+
+        form.reset({
+          data: new Date(report.data).toISOString().split('T')[0],
+          localizacao: 'Localização salva',
+          observacoes: '',
+          pontos: pontos.map((p) => ({
+            id: p.id,
+            numero_ponto: p.numero_ponto,
+            lat: p.coordenadas_lat,
+            lng: p.coordenadas_lng,
+            tipo: p.tipo_instalacao,
+            valor: p.valor,
+          })),
+        })
+      } catch (err) {
+        toast({ title: 'Erro ao carregar reporte', variant: 'destructive' })
+        navigate('/meus-reports')
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchReport()
+  }, [id, isEditing, form, navigate, toast])
+
+  const pontos = form.watch('pontos')
+  const mapPoints = fields.map((f, i) => ({
+    ...pontos[i],
+    id: pontos[i]?.id || f.id,
+  }))
+
   const handleMapClick = (lat: number, lng: number) => {
     append({
-      id: crypto.randomUUID(),
       numero_ponto: `P${fields.length + 1}`,
       lat,
       lng,
@@ -75,8 +115,8 @@ export default function NovoReporte() {
     })
   }
 
-  const handleMarkerDrag = (id: string, lat: number, lng: number) => {
-    const index = form.getValues('pontos').findIndex((p) => p.id === id)
+  const handleMarkerDrag = (ptId: string, lat: number, lng: number) => {
+    const index = fields.findIndex((f, i) => (pontos[i]?.id || f.id) === ptId)
     if (index > -1) {
       form.setValue(`pontos.${index}.lat`, lat, { shouldValidate: true })
       form.setValue(`pontos.${index}.lng`, lng, { shouldValidate: true })
@@ -85,7 +125,6 @@ export default function NovoReporte() {
 
   const addManualPoint = () => {
     append({
-      id: crypto.randomUUID(),
       numero_ponto: `P${fields.length + 1}`,
       lat: -23.55,
       lng: -46.6,
@@ -97,28 +136,66 @@ export default function NovoReporte() {
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setIsSubmitting(true)
     try {
-      const report = await pb.collection('reports').create({
-        usuario_id: user.id,
+      let reportId = id
+
+      const reportData = {
         data: new Date(values.data).toISOString(),
         pontos_totais: values.pontos.length,
         valor_total: values.pontos.reduce((a, p) => a + p.valor, 0),
-        status: 'pendente',
-      })
+      }
 
-      await Promise.all(
-        values.pontos.map((p) =>
-          pb.collection('pontos_instalacao').create({
-            report_id: report.id,
+      if (isEditing && reportId) {
+        await pb.collection('reports').update(reportId, reportData)
+
+        const existingPoints = await pb
+          .collection('pontos_instalacao')
+          .getFullList({ filter: `report_id="${reportId}"` })
+        const existingIds = existingPoints.map((p) => p.id)
+
+        for (const p of values.pontos) {
+          const ptData = {
+            report_id: reportId,
             numero_ponto: p.numero_ponto,
             coordenadas_lat: p.lat,
             coordenadas_lng: p.lng,
             tipo_instalacao: p.tipo,
             valor: p.valor,
-          }),
-        ),
-      )
+          }
+          if (p.id && existingIds.includes(p.id)) {
+            await pb.collection('pontos_instalacao').update(p.id, ptData)
+            existingIds.splice(existingIds.indexOf(p.id), 1)
+          } else {
+            await pb.collection('pontos_instalacao').create(ptData)
+          }
+        }
 
-      toast({ title: 'Reporte salvo com sucesso!' })
+        for (const oldId of existingIds) {
+          await pb.collection('pontos_instalacao').delete(oldId)
+        }
+
+        toast({ title: 'Reporte atualizado com sucesso!' })
+      } else {
+        const report = await pb.collection('reports').create({
+          ...reportData,
+          usuario_id: user.id,
+          status: 'pendente',
+        })
+        reportId = report.id
+
+        await Promise.all(
+          values.pontos.map((p) =>
+            pb.collection('pontos_instalacao').create({
+              report_id: reportId,
+              numero_ponto: p.numero_ponto,
+              coordenadas_lat: p.lat,
+              coordenadas_lng: p.lng,
+              tipo_instalacao: p.tipo,
+              valor: p.valor,
+            }),
+          ),
+        )
+        toast({ title: 'Reporte salvo com sucesso!' })
+      }
       navigate('/meus-reports')
     } catch {
       toast({ title: 'Erro ao salvar', variant: 'destructive' })
@@ -127,14 +204,19 @@ export default function NovoReporte() {
     }
   }
 
-  const pontos = form.watch('pontos')
   const totalValor = pontos.reduce((a, p) => a + (Number(p.valor) || 0), 0)
+
+  if (loading) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">Carregando dados do reporte...</div>
+    )
+  }
 
   return (
     <div className="flex flex-col lg:flex-row min-h-[calc(100vh-6rem)] gap-6 animate-fade-in-up">
       <div className="w-full lg:w-[60%] h-[50vh] lg:h-auto min-h-[400px] relative">
         <InteractiveMap
-          points={pontos}
+          points={mapPoints as any}
           onMapClick={handleMapClick}
           onMarkerDrag={handleMarkerDrag}
           onClear={() => form.setValue('pontos', [])}
@@ -144,8 +226,12 @@ export default function NovoReporte() {
       <div className="w-full lg:w-[40%] flex flex-col h-auto lg:h-[calc(100vh-6rem)]">
         <Card className="flex flex-col h-full shadow-sm border-t-4 border-t-primary overflow-hidden">
           <CardHeader className="shrink-0 pb-4">
-            <CardTitle>Novo Reporte</CardTitle>
-            <CardDescription>Registre os pontos de instalação realizados.</CardDescription>
+            <CardTitle>{isEditing ? 'Editar Reporte' : 'Novo Reporte'}</CardTitle>
+            <CardDescription>
+              {isEditing
+                ? 'Atualize as informações do reporte.'
+                : 'Registre os pontos de instalação realizados.'}
+            </CardDescription>
           </CardHeader>
           <Form {...form}>
             <form
@@ -206,7 +292,7 @@ export default function NovoReporte() {
                       </Button>
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant="secondary" className="shadow-sm">
-                          {field.numero_ponto}
+                          {form.watch(`pontos.${index}.numero_ponto`)}
                         </Badge>
                         <span className="text-[10px] text-muted-foreground font-mono">
                           Lat: {form.watch(`pontos.${index}.lat`).toFixed(4)}, Lng:{' '}
@@ -219,7 +305,10 @@ export default function NovoReporte() {
                           name={`pontos.${index}.tipo`}
                           render={({ field }) => (
                             <FormItem>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <Select
+                                onValueChange={field.onChange}
+                                defaultValue={field.value || undefined}
+                              >
                                 <FormControl>
                                   <SelectTrigger className="h-8 text-xs bg-background">
                                     <SelectValue placeholder="Tipo" />
@@ -305,12 +394,16 @@ export default function NovoReporte() {
                     type="button"
                     variant="outline"
                     className="w-full"
-                    onClick={() => navigate('/')}
+                    onClick={() => navigate('/meus-reports')}
                   >
                     Cancelar
                   </Button>
                   <Button type="submit" disabled={isSubmitting} className="w-full shadow-md">
-                    {isSubmitting ? 'Salvando...' : 'Salvar Reporte'}
+                    {isSubmitting
+                      ? 'Salvando...'
+                      : isEditing
+                        ? 'Atualizar Reporte'
+                        : 'Salvar Reporte'}
                   </Button>
                 </div>
               </div>

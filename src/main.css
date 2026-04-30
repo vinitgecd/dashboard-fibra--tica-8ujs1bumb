@@ -1,126 +1,62 @@
-/* Global styles - Theme, font, utilities, animations and global components */
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    /* Forest Green & Black Brand Theme */
-    --background: 210 40% 98%; /* #F8FAFC */
-    --foreground: 0 0% 0%;
-
+    --background: 0 0% 100%;
+    --foreground: 0 0% 0%; /* Preto para texto e elementos secundários */
     --card: 0 0% 100%;
     --card-foreground: 0 0% 0%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 0%;
 
-    --primary: 120 61% 34%; /* Forest Green #228B22 */
+    /* Verde Floresta #228B22 -> HSL: 120, 61%, 34% */
+    --primary: 120 61% 34%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 0%; /* Black */
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 120 60% 90%;
-    --accent-foreground: 120 61% 34%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+    --accent: 120 61% 34%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
     --ring: 120 61% 34%;
-
-    --radius: 0.75rem; /* rounded-xl */
-
-    --sidebar-background: 0 0% 100%;
-    --sidebar-foreground: 0 0% 0%;
-    --sidebar-primary: 120 61% 34%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 40% 96.1%;
-    --sidebar-accent-foreground: 0 0% 0%;
-    --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 120 61% 34%;
-
-    --chart-1: 120 61% 34%;
-    --chart-2: 0 0% 0%;
-    --chart-3: 209 100% 32%;
-    --chart-4: 42 100% 50%;
-    --chart-5: 33 100% 50%;
+    --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 120 61% 34%;
+    --background: 0 0% 5%;
+    --foreground: 0 0% 95%;
+    --card: 0 0% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 10%;
+    --popover-foreground: 0 0% 95%;
+    --primary: 120 61% 40%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 98%;
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 222.2 84% 4.9%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 222.2 84% 4.9%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 222.2 84% 4.9%;
-    --input: 222.2 84% 4.9%;
-    --ring: 120 61% 34%;
-    --sidebar-background: 222.2 84% 4.9%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 120 61% 34%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222.2 84% 4.9%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 222.2 84% 4.9%;
-    --sidebar-ring: 120 61% 34%;
-  }
-
-  body {
-    font-family: 'Inter', sans-serif;
-  }
-
-  section[aria-label='Notifications alt+T'] {
-    padding: 0 !important;
-    margin: 0 !important;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 95%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 120 61% 40%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 120 61% 40%;
   }
 }
 
-@layer utilities {
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
+@layer base {
+  * {
+    @apply border-border;
   }
-
-  @keyframes fade-in-up {
-    from {
-      transform: translateY(10px);
-      opacity: 0;
-    }
-    to {
-      transform: translateY(0);
-      opacity: 1;
-    }
-  }
-
-  .animate-fade-in {
-    animation: fade-in 0.5s ease-out forwards;
-  }
-
-  .animate-fade-in-up {
-    animation: fade-in-up 0.6s ease-out forwards;
+  body {
+    @apply bg-background text-foreground;
   }
 }
